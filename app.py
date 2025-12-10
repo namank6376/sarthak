@@ -1176,7 +1176,7 @@ def upgrade_worker_table(conn):
 def main():
     conn = get_connection()
     init_db(conn)
-    
+    upgrade_worker_table(conn)
 
     if "active_page" not in st.session_state:
         st.session_state.active_page = "Dashboard"
