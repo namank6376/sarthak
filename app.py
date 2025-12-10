@@ -8,8 +8,8 @@ from datetime import date, datetime, timedelta
 # =========================
 
 st.set_page_config(
-    page_title="HRMS & Accounts Dashboard",
-    page_icon="",
+    page_title="Welcome to Technique Iron Works",
+    page_icon="👷‍♂️",
     layout="wide"
 )
 
@@ -543,7 +543,7 @@ def calculate_payroll(conn, start_date, end_date):
 # =========================
 
 def render_dashboard(conn):
-    st.title("📊 HRMS & Accounts Dashboard")
+    st.title("Technique Iron Works SAP")
 
     # Notifications section
     notifications = check_notifications(conn)
@@ -604,7 +604,7 @@ def render_dashboard(conn):
 # =========================
 
 def render_workers(conn):
-    st.title("👷 Workers Management")
+    st.title("Workers Management")
 
     tab_add, tab_manage = st.tabs(["➕ Add Worker", "🛠 Manage Workers"])
 
@@ -613,9 +613,20 @@ def render_workers(conn):
         st.subheader("Add New Worker")
 
         with st.form("add_worker_form"):
+            st.subheader("Personal Details")
             name = st.text_input("Worker Name *")
+            father_name = st.text_input("Father's Name")
+            mobile = st.text_input("Mobile Number")
             role = st.text_input("Role / Designation")
+            site_alloc = st.text_input("Site Allocation")
             join_date = st.date_input("Joining Date", value=date.today())
+
+            st.subheader("Account Details")
+            account_number = st.text_input("Account Number")
+            bank_name = st.text_input("Bank Name")
+            ifsc_code = st.text_input("IFSC Code")
+
+            st.subheader("Salary Details")
             daily_rate = st.number_input("Per Day Rate (₹) *", min_value=0.0, step=50.0)
             is_active = st.checkbox("Active", value=True)
 
@@ -623,17 +634,24 @@ def render_workers(conn):
 
         if submitted:
             if not name or daily_rate <= 0:
-                st.error("Name and Per Day Rate are mandatory and Rate must be > 0.")
+                st.error("Name and Per Day Rate are mandatory.")
             else:
                 run_query(
                     conn,
                     """
-                    INSERT INTO workers (name, role, join_date, daily_rate, is_active)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO workers 
+                    (name, father_name, mobile, role, site_allocation, join_date, daily_rate, 
+                    account_number, bank_name, ifsc_code, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (name, role, join_date.isoformat(), daily_rate, 1 if is_active else 0)
+                    (
+                        name, father_name, mobile, role, site_alloc, join_date.isoformat(),
+                        daily_rate, account_number, bank_name, ifsc_code, 
+                        1 if is_active else 0
+                    )
                 )
-                st.success(f"Worker '{name}' added successfully with daily rate ₹{daily_rate:.2f}.")
+                st.success(f"Worker '{name}' added successfully.")
+
 
     # ---- Manage Workers ----
     with tab_manage:
@@ -645,7 +663,15 @@ def render_workers(conn):
             return
 
         st.dataframe(
-            workers_df[["id", "name", "role", "join_date", "daily_rate", "is_active"]],
+            workers_df[
+                [
+                "id", "name", "father_name", "mobile", "role", "site_allocation",
+                "join_date", "daily_rate",
+                "account_number", "bank_name", "ifsc_code",
+                "is_active"
+                ]
+            ]
+            ,
             use_container_width=True
         )
 
@@ -657,37 +683,48 @@ def render_workers(conn):
         w_row = workers_df[workers_df["id"] == selected_id].iloc[0]
 
         with st.form("update_worker_form"):
+            st.subheader("Personal Details")
             new_name = st.text_input("Name", value=w_row["name"])
-            new_role = st.text_input("Role", value=w_row.get("role", "") or "")
+            new_father = st.text_input("Father's Name", value=w_row.get("father_name", "") or "")
+            new_mobile = st.text_input("Mobile Number", value=w_row.get("mobile", "") or "")
+            new_role = st.text_input("Role / Designation", value=w_row.get("role", "") or "")
+            new_site = st.text_input("Site Allocation", value=w_row.get("site_allocation", "") or "")
+
             jd = datetime.strptime(w_row["join_date"], "%Y-%m-%d").date() if w_row.get("join_date") else date.today()
             new_join_date = st.date_input("Joining Date", value=jd)
-            new_daily_rate = st.number_input("Per Day Rate (₹)", min_value=0.0, step=50.0, value=float(w_row["daily_rate"]))
+
+            st.subheader("Account Details")
+            new_acc = st.text_input("Account Number", value=w_row.get("account_number", "") or "")
+            new_bank = st.text_input("Bank Name", value=w_row.get("bank_name", "") or "")
+            new_ifsc = st.text_input("IFSC Code", value=w_row.get("ifsc_code", "") or "")
+
+            st.subheader("Salary Details")
+            new_daily_rate = st.number_input("Per Day Rate (₹)", min_value=0.0, step=50.0,
+                                            value=float(w_row["daily_rate"]))
             new_active = st.checkbox("Active", value=bool(w_row["is_active"]))
 
             col_save, col_remove = st.columns(2)
-            with col_save:
-                save = st.form_submit_button("Save Changes")
-            with col_remove:
-                remove = st.form_submit_button("Mark as Inactive")
+            save = col_save.form_submit_button("Save Changes")
+            remove = col_remove.form_submit_button("Mark as Inactive")
 
         if save:
             run_query(
                 conn,
                 """
-                UPDATE workers SET name = ?, role = ?, join_date = ?, daily_rate = ?, is_active = ?
-                WHERE id = ?
+                UPDATE workers 
+                SET name=?, father_name=?, mobile=?, role=?, site_allocation=?, 
+                    join_date=?, daily_rate=?, account_number=?, bank_name=?, ifsc_code=?, is_active=?
+                WHERE id=?
                 """,
-                (new_name, new_role, new_join_date.isoformat(), new_daily_rate, 1 if new_active else 0, selected_id)
+                (
+                    new_name, new_father, new_mobile, new_role, new_site,
+                    new_join_date.isoformat(), new_daily_rate,
+                    new_acc, new_bank, new_ifsc,
+                    1 if new_active else 0, selected_id
+                )
             )
             st.success("Worker details updated.")
 
-        if remove:
-            run_query(
-                conn,
-                "UPDATE workers SET is_active = 0 WHERE id = ?",
-                (selected_id,)
-            )
-            st.warning(f"Worker ID {selected_id} marked as inactive.")
 
 
 # =========================
@@ -695,7 +732,7 @@ def render_workers(conn):
 # =========================
 
 def render_attendance(conn):
-    st.title("📅 Attendance Management")
+    st.title("Attendance Management")
 
     workers_df = get_workers_df(conn, active_only=True)
     if workers_df.empty:
@@ -770,7 +807,7 @@ def render_attendance(conn):
 # =========================
 
 def render_accounts(conn):
-    st.title("💰 Accounts & Transactions")
+    st.title("Accounts & Transactions")
 
     tab_tx, tab_pay = st.tabs(["💸 Business Transactions", "👷 Worker Payments & Advances"])
 
@@ -818,7 +855,7 @@ def render_accounts(conn):
 
             csv = tx_df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="⬇️ Download Transactions as CSV",
+                label="Download Transactions as CSV",
                 data=csv,
                 file_name=f"transactions_{start}_to_{end}.csv",
                 mime="text/csv"
@@ -879,7 +916,7 @@ def render_accounts(conn):
 # =========================
 
 def render_payroll(conn):
-    st.title("🧾 Payroll (Salary Calculation)")
+    st.title("Payroll (Salary Calculation)")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1004,7 +1041,7 @@ def render_payroll(conn):
 # =========================
 
 def render_reports(conn):
-    st.title("📈 Reports & Daily Insights")
+    st.title("Reports & Daily Insights")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1051,7 +1088,7 @@ def render_reports(conn):
     # Export daily summary
     csv_daily = daily_summary.reset_index().to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="⬇️ Download Daily Summary as CSV",
+        label="Download Daily Summary as CSV",
         data=csv_daily,
         file_name=f"daily_summary_{start}_to_{end}.csv",
         mime="text/csv"
@@ -1075,7 +1112,7 @@ def render_reports(conn):
 # =========================
 
 def render_settings(conn):
-    st.title("⚙️ Settings & Notifications Thresholds")
+    st.title("Settings & Notifications Thresholds")
 
     st.subheader("Notification Thresholds")
 
@@ -1105,6 +1142,32 @@ def render_settings(conn):
         set_setting(conn, "fund_flow_threshold", flow_th)
         st.success("Settings updated successfully.")
 
+#TABLE MODIFICATIONS
+def upgrade_worker_table(conn):
+    """Safely add new columns to workers table if they do not exist."""
+    cur = conn.cursor()
+
+    # Because row_factory returns dicts, extract using keys
+    cur.execute("PRAGMA table_info(workers);")
+    existing_cols = [c["name"] for c in cur.fetchall()]
+
+    def add_col(column, col_type):
+        if column not in existing_cols:
+            cur.execute(f"ALTER TABLE workers ADD COLUMN {column} {col_type};")
+
+    # Personal details
+    add_col("father_name", "TEXT")
+    add_col("mobile", "TEXT")
+    add_col("site_allocation", "TEXT")
+
+    # Account details
+    add_col("account_number", "TEXT")
+    add_col("bank_name", "TEXT")
+    add_col("ifsc_code", "TEXT")
+
+    conn.commit()
+
+
 
 # =========================
 # MAIN APP ENTRY
@@ -1113,6 +1176,7 @@ def render_settings(conn):
 def main():
     conn = get_connection()
     init_db(conn)
+    upgrade_worker_table(conn)
 
     if "active_page" not in st.session_state:
         st.session_state.active_page = "Dashboard"
@@ -1174,3 +1238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
