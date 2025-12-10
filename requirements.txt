@@ -1,0 +1,7 @@
+streamlit
+pandas
+supabase
+gotrue
+postgrest
+storage3
+realtime
