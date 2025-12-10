@@ -4,6 +4,8 @@ from datetime import date, datetime, timedelta
 from supabase import create_client, Client
 import hashlib
 import streamlit as st
+st.write("Loaded secrets:", list(st.secrets.keys()))
+
 
 
 # =========================
@@ -1123,3 +1125,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
