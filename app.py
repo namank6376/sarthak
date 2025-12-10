@@ -13,8 +13,8 @@ import streamlit as st
 # =========================
 
 st.set_page_config(
-    page_title="Welcome to Technique Iron Works",
-    page_icon="👷‍♂️",
+    page_title="Sarthak",
+    page_icon="🌐",
     layout="wide"
 )
 
@@ -538,7 +538,7 @@ def render_workers(conn):
     db = get_db()
     st.title("Workers Management")
 
-    tab_add, tab_manage = st.tabs(["➕ Add Worker", "🛠 Manage Workers"])
+    tab_add, tab_manage = st.tabs(["Add Worker", "Manage Workers"])
 
     # ---- Add Worker ----
     with tab_add:
@@ -734,7 +734,7 @@ def render_accounts(conn):
     db = get_db()
     st.title("Accounts & Transactions")
 
-    tab_tx, tab_pay = st.tabs(["💸 Business Transactions", "👷 Worker Payments & Advances"])
+    tab_tx, tab_pay = st.tabs(["Business Transactions", "Worker Payments & Advances"])
 
     # ---- Business Transactions ----
     with tab_tx:
@@ -1125,5 +1125,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
