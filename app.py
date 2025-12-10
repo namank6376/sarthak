@@ -240,6 +240,40 @@ def get_transactions_df(conn, start_date=None, end_date=None):
     df["date"] = pd.to_datetime(df["date"])
     return df
 
+def get_expense_totals(conn):
+    """
+    Return dict with expense totals:
+    - today_expense
+    - month_expense (current calendar month)
+    - fy_expense (current financial year, assumed Apr 1 -> Mar 31)
+    """
+    today = date.today()
+    # Today
+    tx_today = get_transactions_df(conn, start_date=today, end_date=today)
+    today_expense = float(tx_today[tx_today["type"] == "EXPENSE"]["amount"].sum()) if not tx_today.empty else 0.0
+
+    # Current month start and end
+    month_start = today.replace(day=1)
+    month_end = today
+    tx_month = get_transactions_df(conn, start_date=month_start, end_date=month_end)
+    month_expense = float(tx_month[tx_month["type"] == "EXPENSE"]["amount"].sum()) if not tx_month.empty else 0.0
+
+    # Financial year start (Apr 1) to today
+    if today.month >= 4:
+        fy_start = date(today.year, 4, 1)
+    else:
+        fy_start = date(today.year - 1, 4, 1)
+    tx_fy = get_transactions_df(conn, start_date=fy_start, end_date=today)
+    fy_expense = float(tx_fy[tx_fy["type"] == "EXPENSE"]["amount"].sum()) if not tx_fy.empty else 0.0
+
+    return {
+        "today_expense": round(today_expense, 2),
+        "month_expense": round(month_expense, 2),
+        "fy_expense": round(fy_expense, 2),
+        "fy_start": fy_start
+    }
+
+
 
 def get_attendance_df(conn, for_date=None):
     query = """
@@ -399,17 +433,22 @@ def check_notifications(conn):
 
 def calculate_payroll(conn, start_date, end_date):
     """
-    Calculate salary for each worker between start_date and end_date.
-    Assumptions:
-    - Present = 1 full day
-    - Half-Day = 0.5 day
-    - Leave / Absent = 0 day (unpaid)
+    Calculate salary for each worker between start_date and end_date using hours + overtime logic.
+
+    Rules:
+    - Present: hours (default 8). Pay for up to 8 hours pro-rated from daily_rate,
+      overtime for hours > 8 at rate = daily_rate / 8 per hour.
+      So day_pay = min(hours,8)/8 * daily_rate + max(hours-8, 0) * (daily_rate/8)
+    - Half-Day: day_pay = 0.5 * daily_rate (regardless of hours value)
+    - Absent / Leave: day_pay = 0
     """
     workers_df = get_workers_df(conn, active_only=True)
     if workers_df.empty:
         return pd.DataFrame()
 
+    # Attendance rows in period
     att_df = get_attendance_range_df(conn, start_date, end_date)
+    # Payments (ADVANCE / PAYMENT) in period
     pay_df = get_worker_payments_range_df(conn, start_date, end_date)
 
     rows = []
@@ -418,20 +457,64 @@ def calculate_payroll(conn, start_date, end_date):
         w_name = w["name"]
         rate = float(w["daily_rate"])
 
+        # Filter attendance for this worker
         w_att = att_df[att_df["worker_id"] == wid] if not att_df.empty else pd.DataFrame()
-        if w_att.empty:
-            days_present = 0
-            half_days = 0
-        else:
-            days_present = (w_att["status"] == "Present").sum()
-            half_days = (w_att["status"] == "Half-Day").sum()
 
-        worked_days = days_present + 0.5 * half_days
-        gross_salary = worked_days * rate
+        gross_salary = 0.0
+        days_present = 0
+        half_days = 0
+        overtime_hours_total = 0.0
+        worked_days_equivalent = 0.0
 
+        if not w_att.empty:
+            # Iterate per day (in case multiple records per day, group by date and resolve)
+            # We'll take the last attendance record per date if duplicates exist.
+            w_att_by_day = (
+                w_att.assign(att_day=w_att["date"].dt.date)
+                    .sort_values("date")
+                    .groupby("att_day")
+                    .last()
+                    .reset_index()
+)
+
+
+            for _, day_row in w_att_by_day.iterrows():
+                status = day_row["status"]
+                hours = float(day_row["hours"]) if day_row.get("hours") not in (None, "") else 8.0
+
+                if status == "Present":
+                    # default hours to 8 if user left it blank or zero
+                    if hours <= 0:
+                        hours = 8.0
+
+                    base_hours = min(hours, 8.0)
+                    overtime_hours = max(0.0, hours - 8.0)
+
+                    base_pay = (base_hours / 8.0) * rate
+                    overtime_pay = overtime_hours * (rate / 8.0)
+
+                    day_pay = base_pay + overtime_pay
+
+                    gross_salary += day_pay
+                    days_present += 1 if base_hours > 0 else 0
+                    overtime_hours_total += overtime_hours
+                    worked_days_equivalent += (base_hours / 8.0) + (overtime_hours / 8.0)
+
+                elif status == "Half-Day":
+                    # Paid half of the daily rate
+                    day_pay = 0.5 * rate
+                    gross_salary += day_pay
+                    half_days += 1
+                    worked_days_equivalent += 0.5
+
+                else:
+                    # Absent or Leave => no pay
+                    continue
+
+        # Payments affecting salary period
         w_pay = pay_df[pay_df["worker_id"] == wid] if not pay_df.empty else pd.DataFrame()
-        advances = w_pay[w_pay["type"] == "ADVANCE"]["amount"].sum() if not w_pay.empty else 0.0
-        payments = w_pay[w_pay["type"] == "PAYMENT"]["amount"].sum() if not w_pay.empty else 0.0
+        advances = float(w_pay[w_pay["type"] == "ADVANCE"]["amount"].sum()) if not w_pay.empty else 0.0
+        payments = float(w_pay[w_pay["type"] == "PAYMENT"]["amount"].sum()) if not w_pay.empty else 0.0
 
         net_payable = gross_salary - advances - payments
 
@@ -441,16 +524,18 @@ def calculate_payroll(conn, start_date, end_date):
             "daily_rate": rate,
             "days_present": days_present,
             "half_days": half_days,
-            "worked_days_equivalent": worked_days,
-            "gross_salary": gross_salary,
-            "total_advance": advances,
-            "total_payment_done": payments,
-            "net_payable": net_payable
+            "overtime_hours": overtime_hours_total,
+            "worked_days_equivalent": round(worked_days_equivalent, 3),
+            "gross_salary": round(gross_salary, 2),
+            "total_advance": round(advances, 2),
+            "total_payment_done": round(payments, 2),
+            "net_payable": round(net_payable, 2)
         })
 
     payroll_df = pd.DataFrame(rows)
     payroll_df = payroll_df.sort_values("worker_name")
     return payroll_df
+
 
 
 # =========================
@@ -808,34 +893,55 @@ def render_payroll(conn):
         st.info("No payroll data. Ensure workers, attendance, and daily rates are added.")
         return
 
-    st.subheader("Calculated Payroll Summary")
+    # Totals / subtotals
+    subtotal_gross = float(payroll_df["gross_salary"].sum())
+    total_advances = float(payroll_df["total_advance"].sum())
+    total_payments_done = float(payroll_df["total_payment_done"].sum())
+    net_total_payable = float(payroll_df["net_payable"].sum())
 
-    # Display a cleaner table
+    st.subheader("Payroll Summary")
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.caption("Subtotal (Gross Salaries)")
+        st.markdown(f"<div class='big-metric'>₹{subtotal_gross:.2f}</div>", unsafe_allow_html=True)
+    with k2:
+        st.caption("Total Advances")
+        st.markdown(f"<div class='big-metric'>₹{total_advances:.2f}</div>", unsafe_allow_html=True)
+    with k3:
+        st.caption("Total Payments Done")
+        st.markdown(f"<div class='big-metric'>₹{total_payments_done:.2f}</div>", unsafe_allow_html=True)
+    with k4:
+        st.caption("Net Total Payable")
+        st.markdown(f"<div class='big-metric'>₹{net_total_payable:.2f}</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.subheader("Calculated Payroll Details")
+
     display_cols = [
         "worker_name",
         "daily_rate",
         "days_present",
         "half_days",
+        "overtime_hours",
         "worked_days_equivalent",
         "gross_salary",
         "total_advance",
         "total_payment_done",
         "net_payable",
     ]
-    st.dataframe(
-        payroll_df[display_cols].rename(columns={
-            "worker_name": "Worker",
-            "daily_rate": "Per Day Rate",
-            "days_present": "Full Present Days",
-            "half_days": "Half Days",
-            "worked_days_equivalent": "Worked Days (Equivalent)",
-            "gross_salary": "Gross Salary",
-            "total_advance": "Total Advances",
-            "total_payment_done": "Payments Done",
-            "net_payable": "Net Payable",
-        }),
-        use_container_width=True
-    )
+    df_show = payroll_df[display_cols].rename(columns={
+        "worker_name": "Worker",
+        "daily_rate": "Per Day Rate",
+        "days_present": "Full Present Days",
+        "half_days": "Half Days",
+        "overtime_hours": "Overtime Hours",
+        "worked_days_equivalent": "Worked Days (Eq.)",
+        "gross_salary": "Gross Salary",
+        "total_advance": "Total Advances",
+        "total_payment_done": "Payments Done",
+        "net_payable": "Net Payable",
+    })
+    st.dataframe(df_show, use_container_width=True)
 
     # Export payroll summary
     csv = payroll_df.to_csv(index=False).encode("utf-8")
@@ -890,6 +996,7 @@ def render_payroll(conn):
             st.success(
                 f"Salary payment of ₹{amount_to_pay:.2f} recorded for {selected_row['worker_name']}."
             )
+
 
 
 # =========================
