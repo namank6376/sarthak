@@ -15,8 +15,8 @@ st.set_page_config(
 )
 
 # ===== Supabase Configuration =====
-SUPABASE_URL = st.secrets["https://ensxqllikajohvuoaogb.supabase.co"]
-SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuc3hxbGxpa2Fqb2h2dW9hb2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNTI4MDQsImV4cCI6MjA4MDkyODgwNH0.WMeduJZ5evnTQ_m9dELGhzI3OccAyDxvgsTvuXZbpao"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 
 @st.cache_resource
