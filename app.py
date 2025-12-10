@@ -1,7 +1,8 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 from datetime import date, datetime, timedelta
+from supabase import create_client, Client
+import hashlib
 
 # =========================
 # BASIC APP CONFIG & STYLE
@@ -13,7 +14,32 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for animated sidebar navigation
+# ===== Supabase Configuration =====
+SUPABASE_URL = st.secrets["https://ensxqllikajohvuoaogb.supabase.co"]
+SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuc3hxbGxpa2Fqb2h2dW9hb2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzNTI4MDQsImV4cCI6MjA4MDkyODgwNH0.WMeduJZ5evnTQ_m9dELGhzI3OccAyDxvgsTvuXZbpao"]
+
+
+@st.cache_resource
+def get_db() -> Client:
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# Admin auth config
+ADMIN_USERNAME = "naman"
+ADMIN_PASSWORD_PLAIN = "admin1234"  # used only to seed if not exists
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
+
+# =========================
+# GLOBAL STYLES
+# =========================
+
+# Custom CSS for sidebar buttons
 st.markdown("""
 <style>
 /* Default sidebar button */
@@ -27,7 +53,6 @@ st.markdown("""
     border: 1px solid #D16B5A;
     margin: -20px 0 !important;
     transition: 0.25s ease;
-    
 }
 
 /* Hover animation */
@@ -43,9 +68,41 @@ st.markdown("""
     border: 1px solid #049E52 !important;
     transform: translateX(8px);
 }
+
+/* Login modal overlay */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    z-index: 9998;
+}
+
+/* Login modal card */
+.login-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #111827;
+    color: white;
+    padding: 2rem 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.7);
+    z-index: 9999;
+    width: min(400px, 90vw);
+}
+
+.login-modal h2 {
+    margin-bottom: 0.75rem;
+}
+
+.login-modal p {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    color: #9CA3AF;
+}
 </style>
 """, unsafe_allow_html=True)
-
 
 st.markdown(
     """
@@ -63,182 +120,74 @@ st.markdown(
 )
 
 # =========================
-# DATABASE HELPERS (SQLite)
+# DB INITIALIZATION HELPERS
 # =========================
 
-DB_NAME = "hrms_accounts.db"
-
-
-def dict_factory(cursor, row):
-    """Return rows as dict instead of tuples."""
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
-
-
-@st.cache_resource
-def get_connection():
-    """Create and cache a single DB connection for the app."""
-    conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    conn.row_factory = dict_factory
-    return conn
-
-
-def init_db(conn):
-    """Create tables if they do not exist."""
-    cur = conn.cursor()
-
-    # Workers master
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS workers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            role TEXT,
-            join_date TEXT,
-            daily_rate REAL NOT NULL,
-            is_active INTEGER DEFAULT 1
-        );
-        """
-    )
-
-    # Daily attendance
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            worker_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            status TEXT NOT NULL,      -- Present / Absent / Leave / Half-Day
-            hours REAL,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
-        );
-        """
-    )
-
-    # Transactions: purchases, expenses, income, etc.
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            type TEXT NOT NULL,        -- INCOME / EXPENSE
-            category TEXT NOT NULL,    -- Purchase / Expense / Other
-            amount REAL NOT NULL,
-            description TEXT
-        );
-        """
-    )
-
-    # Payments and Advances to workers
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS worker_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            worker_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            amount REAL NOT NULL,
-            type TEXT NOT NULL,       -- PAYMENT / ADVANCE
-            notes TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
-        );
-        """
-    )
-
-    # Simple key-value Settings for thresholds, etc.
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-        """
-    )
-
-    conn.commit()
-
-
-def run_query(conn, query, params=(), fetch: str = "none"):
-    """
-    Generic helper to run queries.
-    fetch = "none" / "one" / "all"
-    """
-    cur = conn.cursor()
-    cur.execute(query, params)
-    conn.commit()
-
-    if fetch == "one":
-        return cur.fetchone()
-    elif fetch == "all":
-        return cur.fetchall()
-    return None
+def ensure_admin_user():
+    """Ensure the single admin user exists in Supabase."""
+    db = get_db()
+    res = db.table("admin_auth").select("username").eq("username", ADMIN_USERNAME).execute()
+    if not res.data:
+        db.table("admin_auth").insert({
+            "username": ADMIN_USERNAME,
+            "password_hash": ADMIN_PASSWORD_HASH
+        }).execute()
 
 
 # =========================
-# SETTINGS HELPERS
+# SETTINGS HELPERS (Supabase)
 # =========================
 
 def get_setting(conn, key, default=None):
-    row = run_query(
-        conn,
-        "SELECT value FROM settings WHERE key = ?",
-        (key,),
-        fetch="one"
-    )
-    if row and "value" in row:
-        try:
-            return float(row["value"])
-        except ValueError:
-            return row["value"]
-    return default
+    db = get_db()
+    res = db.table("settings").select("value").eq("key", key).execute()
+    if not res.data:
+        return default
+    value = res.data[0]["value"]
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return value
 
 
 def set_setting(conn, key, value):
-    run_query(
-        conn,
-        """
-        INSERT INTO settings (key, value) VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        """,
-        (key, str(value)),
-        fetch="none"
-    )
+    db = get_db()
+    db.table("settings").upsert({
+        "key": key,
+        "value": str(value)
+    }).execute()
 
 
 # =========================
-# BUSINESS LOGIC FUNCTIONS
+# BUSINESS LOGIC: LOADERS
 # =========================
 
 def get_workers_df(conn, active_only=True):
-    query = "SELECT * FROM workers"
-    params = ()
+    db = get_db()
+    query = db.table("workers").select("*")
     if active_only:
-        query += " WHERE is_active = 1"
-    rows = run_query(conn, query, params, fetch="all")
-    if not rows:
+        query = query.eq("is_active", True)
+    res = query.order("name").execute()
+    if not res.data:
         return pd.DataFrame()
-    return pd.DataFrame(rows)
+    return pd.DataFrame(res.data)
 
 
 def get_transactions_df(conn, start_date=None, end_date=None):
     """Load transactions as DataFrame with optional date filter."""
-    query = "SELECT * FROM transactions WHERE 1=1"
-    params = []
-
+    db = get_db()
+    query = db.table("transactions").select("*")
     if start_date:
-        query += " AND date >= ?"
-        params.append(start_date.isoformat())
+        query = query.gte("date", start_date.isoformat())
     if end_date:
-        query += " AND date <= ?"
-        params.append(end_date.isoformat())
-
-    rows = run_query(conn, query, tuple(params), fetch="all")
-    if not rows:
+        query = query.lte("date", end_date.isoformat())
+    res = query.order("date").execute()
+    if not res.data:
         return pd.DataFrame()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(res.data)
     df["date"] = pd.to_datetime(df["date"])
     return df
+
 
 def get_expense_totals(conn):
     """
@@ -248,17 +197,14 @@ def get_expense_totals(conn):
     - fy_expense (current financial year, assumed Apr 1 -> Mar 31)
     """
     today = date.today()
-    # Today
+
     tx_today = get_transactions_df(conn, start_date=today, end_date=today)
     today_expense = float(tx_today[tx_today["type"] == "EXPENSE"]["amount"].sum()) if not tx_today.empty else 0.0
 
-    # Current month start and end
     month_start = today.replace(day=1)
-    month_end = today
-    tx_month = get_transactions_df(conn, start_date=month_start, end_date=month_end)
+    tx_month = get_transactions_df(conn, start_date=month_start, end_date=today)
     month_expense = float(tx_month[tx_month["type"] == "EXPENSE"]["amount"].sum()) if not tx_month.empty else 0.0
 
-    # Financial year start (Apr 1) to today
     if today.month >= 4:
         fy_start = date(today.year, 4, 1)
     else:
@@ -274,78 +220,63 @@ def get_expense_totals(conn):
     }
 
 
-
 def get_attendance_df(conn, for_date=None):
-    query = """
-        SELECT a.id, a.date, a.status, a.hours, w.name AS worker_name, w.role
-        FROM attendance a
-        JOIN workers w ON a.worker_id = w.id
-        WHERE 1=1
     """
-    params = []
+    Uses view attendance_view: a.id, worker_id, date, status, hours, worker_name, role, daily_rate
+    """
+    db = get_db()
+    query = db.table("attendance_view").select("*")
     if for_date:
-        query += " AND a.date = ?"
-        params.append(for_date.isoformat())
-
-    rows = run_query(conn, query, tuple(params), fetch="all")
-    if not rows:
+        query = query.eq("date", for_date.isoformat())
+    res = query.order("worker_name").execute()
+    if not res.data:
         return pd.DataFrame()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(res.data)
     df["date"] = pd.to_datetime(df["date"])
     return df
 
 
 def get_attendance_range_df(conn, start_date, end_date):
-    """Attendance for a period, joined with worker data."""
-    query = """
-        SELECT a.id, a.worker_id, a.date, a.status, a.hours,
-               w.name AS worker_name, w.role, w.daily_rate
-        FROM attendance a
-        JOIN workers w ON a.worker_id = w.id
-        WHERE a.date >= ? AND a.date <= ?
-    """
-    params = (start_date.isoformat(), end_date.isoformat())
-    rows = run_query(conn, query, params, fetch="all")
-    if not rows:
+    db = get_db()
+    query = (
+        db.table("attendance_view")
+        .select("*")
+        .gte("date", start_date.isoformat())
+        .lte("date", end_date.isoformat())
+    )
+    res = query.order("date").execute()
+    if not res.data:
         return pd.DataFrame()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(res.data)
     df["date"] = pd.to_datetime(df["date"])
     return df
 
 
 def get_worker_payments_df(conn, worker_id=None):
-    query = """
-        SELECT wp.*, w.name AS worker_name
-        FROM worker_payments wp
-        JOIN workers w ON wp.worker_id = w.id
-        WHERE 1=1
-    """
-    params = []
+    db = get_db()
+    query = db.table("worker_payments_view").select("*")
     if worker_id:
-        query += " AND wp.worker_id = ?"
-        params.append(worker_id)
-
-    rows = run_query(conn, query, tuple(params), fetch="all")
-    if not rows:
+        query = query.eq("worker_id", worker_id)
+    res = query.order("date").execute()
+    if not res.data:
         return pd.DataFrame()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(res.data)
     df["date"] = pd.to_datetime(df["date"])
     return df
 
 
 def get_worker_payments_range_df(conn, start_date, end_date):
-    """All worker payments in a period."""
-    query = """
-        SELECT wp.*, w.name AS worker_name
-        FROM worker_payments wp
-        JOIN workers w ON wp.worker_id = w.id
-        WHERE wp.date >= ? AND wp.date <= ?
-    """
-    params = (start_date.isoformat(), end_date.isoformat())
-    rows = run_query(conn, query, params, fetch="all")
-    if not rows:
+    db = get_db()
+    query = (
+        db.table("worker_payments_view")
+        .select("*")
+        .gte("date", start_date.isoformat())
+        .lte("date", end_date.isoformat())
+    )
+    res = query.order("date").execute()
+    if not res.data:
         return pd.DataFrame()
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(res.data)
     df["date"] = pd.to_datetime(df["date"])
     return df
 
@@ -358,12 +289,10 @@ def calculate_summary_metrics(conn):
     workers = get_workers_df(conn, active_only=True)
     total_workers = len(workers)
 
-    # Today attendance
     att_today = get_attendance_df(conn, for_date=today)
     present_today = len(att_today[att_today["status"] == "Present"]) if not att_today.empty else 0
     absent_today = len(att_today[att_today["status"] == "Absent"]) if not att_today.empty else 0
 
-    # Transactions for this month
     tx_month = get_transactions_df(conn, start_date=start_of_month, end_date=today)
     total_expense_month = 0.0
     total_income_month = 0.0
@@ -387,7 +316,6 @@ def calculate_summary_metrics(conn):
 def check_notifications(conn):
     """Return notification messages for high usage / heavy flows."""
     msgs = []
-
     today = date.today()
     last_30 = today - timedelta(days=30)
 
@@ -395,11 +323,9 @@ def check_notifications(conn):
     if tx.empty:
         return msgs
 
-    # Today's expenses
     tx_today = tx[tx["date"].dt.date == today]
     today_expense = tx_today[tx_today["type"] == "EXPENSE"]["amount"].sum()
 
-    # Average daily expense (last 30 days)
     if len(tx) > 0:
         daily_expenses = tx[tx["type"] == "EXPENSE"].groupby(tx["date"].dt.date)["amount"].sum()
         if len(daily_expenses) > 0:
@@ -409,19 +335,20 @@ def check_notifications(conn):
     else:
         avg_daily_expense = 0
 
-    expense_threshold = get_setting(conn, "expense_threshold", default=avg_daily_expense * 1.5 if avg_daily_expense else 0)
+    expense_threshold = get_setting(conn, "expense_threshold",
+                                    default=avg_daily_expense * 1.5 if avg_daily_expense else 0)
 
     if expense_threshold and today_expense > expense_threshold:
         msgs.append(
             f"High daily expense alert: Today's expenses ({today_expense:.2f}) are above the threshold ({expense_threshold:.2f})."
         )
 
-    # Heavy fund flows = total IN + OUT today
     total_out_today = today_expense
     total_in_today = tx_today[tx_today["type"] == "INCOME"]["amount"].sum()
     total_flow_today = total_out_today + total_in_today
 
-    flow_threshold = get_setting(conn, "fund_flow_threshold", default=(avg_daily_expense * 2) if avg_daily_expense else 0)
+    flow_threshold = get_setting(conn, "fund_flow_threshold",
+                                 default=(avg_daily_expense * 2) if avg_daily_expense else 0)
 
     if flow_threshold and total_flow_today > flow_threshold:
         msgs.append(
@@ -434,30 +361,25 @@ def check_notifications(conn):
 def calculate_payroll(conn, start_date, end_date):
     """
     Calculate salary for each worker between start_date and end_date using hours + overtime logic.
-
     Rules:
     - Present: hours (default 8). Pay for up to 8 hours pro-rated from daily_rate,
       overtime for hours > 8 at rate = daily_rate / 8 per hour.
-      So day_pay = min(hours,8)/8 * daily_rate + max(hours-8, 0) * (daily_rate/8)
-    - Half-Day: day_pay = 0.5 * daily_rate (regardless of hours value)
+    - Half-Day: day_pay = 0.5 * daily_rate
     - Absent / Leave: day_pay = 0
     """
     workers_df = get_workers_df(conn, active_only=True)
     if workers_df.empty:
         return pd.DataFrame()
 
-    # Attendance rows in period
     att_df = get_attendance_range_df(conn, start_date, end_date)
-    # Payments (ADVANCE / PAYMENT) in period
     pay_df = get_worker_payments_range_df(conn, start_date, end_date)
 
     rows = []
     for _, w in workers_df.iterrows():
         wid = w["id"]
         w_name = w["name"]
-        rate = float(w["daily_rate"])
+        rate = float(w["daily_rate"]) if w["daily_rate"] is not None else 0.0
 
-        # Filter attendance for this worker
         w_att = att_df[att_df["worker_id"] == wid] if not att_df.empty else pd.DataFrame()
 
         gross_salary = 0.0
@@ -467,32 +389,27 @@ def calculate_payroll(conn, start_date, end_date):
         worked_days_equivalent = 0.0
 
         if not w_att.empty:
-            # Iterate per day (in case multiple records per day, group by date and resolve)
-            # We'll take the last attendance record per date if duplicates exist.
             w_att_by_day = (
                 w_att.assign(att_day=w_att["date"].dt.date)
-                    .sort_values("date")
-                    .groupby("att_day")
-                    .last()
-                    .reset_index()
-)
-
+                     .sort_values("date")
+                     .groupby("att_day")
+                     .last()
+                     .reset_index()
+            )
 
             for _, day_row in w_att_by_day.iterrows():
                 status = day_row["status"]
-                hours = float(day_row["hours"]) if day_row.get("hours") not in (None, "") else 8.0
+                hours = day_row.get("hours")
+                hours = float(hours) if hours not in (None, "") else 8.0
 
                 if status == "Present":
-                    # default hours to 8 if user left it blank or zero
                     if hours <= 0:
                         hours = 8.0
-
                     base_hours = min(hours, 8.0)
                     overtime_hours = max(0.0, hours - 8.0)
 
                     base_pay = (base_hours / 8.0) * rate
                     overtime_pay = overtime_hours * (rate / 8.0)
-
                     day_pay = base_pay + overtime_pay
 
                     gross_salary += day_pay
@@ -501,17 +418,11 @@ def calculate_payroll(conn, start_date, end_date):
                     worked_days_equivalent += (base_hours / 8.0) + (overtime_hours / 8.0)
 
                 elif status == "Half-Day":
-                    # Paid half of the daily rate
                     day_pay = 0.5 * rate
                     gross_salary += day_pay
                     half_days += 1
                     worked_days_equivalent += 0.5
 
-                else:
-                    # Absent or Leave => no pay
-                    continue
-
-        # Payments affecting salary period
         w_pay = pay_df[pay_df["worker_id"] == wid] if not pay_df.empty else pd.DataFrame()
         advances = float(w_pay[w_pay["type"] == "ADVANCE"]["amount"].sum()) if not w_pay.empty else 0.0
         payments = float(w_pay[w_pay["type"] == "PAYMENT"]["amount"].sum()) if not w_pay.empty else 0.0
@@ -533,9 +444,53 @@ def calculate_payroll(conn, start_date, end_date):
         })
 
     payroll_df = pd.DataFrame(rows)
+    if payroll_df.empty:
+        return payroll_df
     payroll_df = payroll_df.sort_values("worker_name")
     return payroll_df
 
+# =========================
+# AUTH / LOGIN
+# =========================
+
+def check_login(username: str, password: str) -> bool:
+    db = get_db()
+    res = db.table("admin_auth").select("password_hash").eq("username", username).execute()
+    if not res.data:
+        return False
+    stored_hash = res.data[0]["password_hash"]
+    return stored_hash == hash_password(password)
+
+
+def render_login_modal():
+    if st.session_state.get("logged_in", False):
+        return
+
+    # Overlay
+    st.markdown("<div class='login-overlay'></div>", unsafe_allow_html=True)
+
+    # Modal card
+    st.markdown("<div class='login-modal'>", unsafe_allow_html=True)
+    st.markdown("<h2>Technique Iron Works</h2>", unsafe_allow_html=True)
+    st.markdown("<p>Secure access to HRMS, Attendance, Payroll & Accounts dashboard.</p>", unsafe_allow_html=True)
+
+    username = st.text_input("Username", key="login_username")
+    password = st.text_input("Password", type="password", key="login_password")
+    col_l, col_r = st.columns([1, 1])
+    with col_l:
+        login_btn = st.button("Login")
+    with col_r:
+        st.caption("Admin only access")
+
+    if login_btn:
+        if check_login(username, password):
+            st.session_state.logged_in = True
+            st.success("Login successful.")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid username or password.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # =========================
@@ -545,7 +500,6 @@ def calculate_payroll(conn, start_date, end_date):
 def render_dashboard(conn):
     st.title("Technique Iron Works SAP")
 
-    # Notifications section
     notifications = check_notifications(conn)
     if notifications:
         for msg in notifications:
@@ -569,9 +523,6 @@ def render_dashboard(conn):
 
     st.markdown("---")
 
-    # Charts: Income vs Expense monthly & category-wise expenses
-    st.subheader("Income vs Expenses (Last 3 Months)")
-
     today = date.today()
     three_months_back = today - timedelta(days=90)
     tx = get_transactions_df(conn, start_date=three_months_back, end_date=today)
@@ -584,6 +535,7 @@ def render_dashboard(conn):
     monthly = tx.groupby(["month", "type"])["amount"].sum().reset_index()
     monthly_pivot = monthly.pivot(index="month", columns="type", values="amount").fillna(0)
 
+    st.subheader("Income vs Expenses (Last 3 Months)")
     st.line_chart(monthly_pivot)
 
     st.subheader("Expenses by Category (Last 30 Days)")
@@ -604,6 +556,7 @@ def render_dashboard(conn):
 # =========================
 
 def render_workers(conn):
+    db = get_db()
     st.title("Workers Management")
 
     tab_add, tab_manage = st.tabs(["➕ Add Worker", "🛠 Manage Workers"])
@@ -636,22 +589,20 @@ def render_workers(conn):
             if not name or daily_rate <= 0:
                 st.error("Name and Per Day Rate are mandatory.")
             else:
-                run_query(
-                    conn,
-                    """
-                    INSERT INTO workers 
-                    (name, father_name, mobile, role, site_allocation, join_date, daily_rate, 
-                    account_number, bank_name, ifsc_code, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        name, father_name, mobile, role, site_alloc, join_date.isoformat(),
-                        daily_rate, account_number, bank_name, ifsc_code, 
-                        1 if is_active else 0
-                    )
-                )
+                db.table("workers").insert({
+                    "name": name,
+                    "father_name": father_name,
+                    "mobile": mobile,
+                    "role": role,
+                    "site_allocation": site_alloc,
+                    "join_date": join_date.isoformat(),
+                    "daily_rate": daily_rate,
+                    "account_number": account_number,
+                    "bank_name": bank_name,
+                    "ifsc_code": ifsc_code,
+                    "is_active": is_active,
+                }).execute()
                 st.success(f"Worker '{name}' added successfully.")
-
 
     # ---- Manage Workers ----
     with tab_manage:
@@ -665,13 +616,12 @@ def render_workers(conn):
         st.dataframe(
             workers_df[
                 [
-                "id", "name", "father_name", "mobile", "role", "site_allocation",
-                "join_date", "daily_rate",
-                "account_number", "bank_name", "ifsc_code",
-                "is_active"
+                    "id", "name", "father_name", "mobile", "role", "site_allocation",
+                    "join_date", "daily_rate",
+                    "account_number", "bank_name", "ifsc_code",
+                    "is_active"
                 ]
-            ]
-            ,
+            ],
             use_container_width=True
         )
 
@@ -690,7 +640,11 @@ def render_workers(conn):
             new_role = st.text_input("Role / Designation", value=w_row.get("role", "") or "")
             new_site = st.text_input("Site Allocation", value=w_row.get("site_allocation", "") or "")
 
-            jd = datetime.strptime(w_row["join_date"], "%Y-%m-%d").date() if w_row.get("join_date") else date.today()
+            jd_raw = w_row.get("join_date")
+            try:
+                jd = datetime.strptime(jd_raw, "%Y-%m-%d").date() if jd_raw else date.today()
+            except Exception:
+                jd = date.today()
             new_join_date = st.date_input("Joining Date", value=jd)
 
             st.subheader("Account Details")
@@ -700,7 +654,7 @@ def render_workers(conn):
 
             st.subheader("Salary Details")
             new_daily_rate = st.number_input("Per Day Rate (₹)", min_value=0.0, step=50.0,
-                                            value=float(w_row["daily_rate"]))
+                                             value=float(w_row["daily_rate"] or 0.0))
             new_active = st.checkbox("Active", value=bool(w_row["is_active"]))
 
             col_save, col_remove = st.columns(2)
@@ -708,23 +662,24 @@ def render_workers(conn):
             remove = col_remove.form_submit_button("Mark as Inactive")
 
         if save:
-            run_query(
-                conn,
-                """
-                UPDATE workers 
-                SET name=?, father_name=?, mobile=?, role=?, site_allocation=?, 
-                    join_date=?, daily_rate=?, account_number=?, bank_name=?, ifsc_code=?, is_active=?
-                WHERE id=?
-                """,
-                (
-                    new_name, new_father, new_mobile, new_role, new_site,
-                    new_join_date.isoformat(), new_daily_rate,
-                    new_acc, new_bank, new_ifsc,
-                    1 if new_active else 0, selected_id
-                )
-            )
+            db.table("workers").update({
+                "name": new_name,
+                "father_name": new_father,
+                "mobile": new_mobile,
+                "role": new_role,
+                "site_allocation": new_site,
+                "join_date": new_join_date.isoformat(),
+                "daily_rate": new_daily_rate,
+                "account_number": new_acc,
+                "bank_name": new_bank,
+                "ifsc_code": new_ifsc,
+                "is_active": new_active,
+            }).eq("id", selected_id).execute()
             st.success("Worker details updated.")
 
+        if remove:
+            db.table("workers").update({"is_active": False}).eq("id", selected_id).execute()
+            st.warning(f"Worker ID {selected_id} marked as inactive.")
 
 
 # =========================
@@ -732,6 +687,7 @@ def render_workers(conn):
 # =========================
 
 def render_attendance(conn):
+    db = get_db()
     st.title("Attendance Management")
 
     workers_df = get_workers_df(conn, active_only=True)
@@ -762,32 +718,21 @@ def render_attendance(conn):
             submit_att = st.form_submit_button("Save Attendance")
 
         if submit_att:
-            # Check if record already exists
-            existing = run_query(
-                conn,
-                "SELECT id FROM attendance WHERE worker_id = ? AND date = ?",
-                (worker_id, att_date.isoformat()),
-                fetch="one"
-            )
-            if existing:
-                run_query(
-                    conn,
-                    """
-                    UPDATE attendance SET status = ?, hours = ?
-                    WHERE id = ?
-                    """,
-                    (status, hours, existing["id"])
-                )
+            res = db.table("attendance").select("id").eq("worker_id", worker_id).eq("date", att_date.isoformat()).execute()
+            if res.data:
+                att_id = res.data[0]["id"]
+                db.table("attendance").update({
+                    "status": status,
+                    "hours": hours
+                }).eq("id", att_id).execute()
                 st.success("Attendance updated for selected worker and date.")
             else:
-                run_query(
-                    conn,
-                    """
-                    INSERT INTO attendance (worker_id, date, status, hours)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (worker_id, att_date.isoformat(), status, hours)
-                )
+                db.table("attendance").insert({
+                    "worker_id": worker_id,
+                    "date": att_date.isoformat(),
+                    "status": status,
+                    "hours": hours
+                }).execute()
                 st.success("Attendance marked successfully.")
 
     with col_right:
@@ -807,6 +752,7 @@ def render_attendance(conn):
 # =========================
 
 def render_accounts(conn):
+    db = get_db()
     st.title("Accounts & Transactions")
 
     tab_tx, tab_pay = st.tabs(["💸 Business Transactions", "👷 Worker Payments & Advances"])
@@ -828,14 +774,13 @@ def render_accounts(conn):
             if not category or amount <= 0:
                 st.error("Category and positive Amount are required.")
             else:
-                run_query(
-                    conn,
-                    """
-                    INSERT INTO transactions (date, type, category, amount, description)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (tx_date.isoformat(), tx_type, category, amount, description)
-                )
+                db.table("transactions").insert({
+                    "date": tx_date.isoformat(),
+                    "type": tx_type,
+                    "category": category,
+                    "amount": amount,
+                    "description": description
+                }).execute()
                 st.success("Transaction saved successfully.")
 
         st.markdown("---")
@@ -888,14 +833,13 @@ def render_accounts(conn):
                 if pay_amount <= 0:
                     st.error("Amount must be > 0.")
                 else:
-                    run_query(
-                        conn,
-                        """
-                        INSERT INTO worker_payments (worker_id, date, amount, type, notes)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                        (worker_id, pay_date.isoformat(), pay_amount, pay_type, notes)
-                    )
+                    db.table("worker_payments").insert({
+                        "worker_id": worker_id,
+                        "date": pay_date.isoformat(),
+                        "amount": pay_amount,
+                        "type": pay_type,
+                        "notes": notes
+                    }).execute()
                     st.success("Worker payment record saved.")
 
             st.markdown("---")
@@ -916,6 +860,7 @@ def render_accounts(conn):
 # =========================
 
 def render_payroll(conn):
+    db = get_db()
     st.title("Payroll (Salary Calculation)")
 
     col1, col2 = st.columns(2)
@@ -930,7 +875,6 @@ def render_payroll(conn):
         st.info("No payroll data. Ensure workers, attendance, and daily rates are added.")
         return
 
-    # Totals / subtotals
     subtotal_gross = float(payroll_df["gross_salary"].sum())
     total_advances = float(payroll_df["total_advance"].sum())
     total_payments_done = float(payroll_df["total_payment_done"].sum())
@@ -980,7 +924,6 @@ def render_payroll(conn):
     })
     st.dataframe(df_show, use_container_width=True)
 
-    # Export payroll summary
     csv = payroll_df.to_csv(index=False).encode("utf-8")
     st.download_button(
         label="⬇ Download Payroll Summary as CSV",
@@ -992,7 +935,6 @@ def render_payroll(conn):
     st.markdown("---")
     st.subheader("Record Salary Payment for a Worker")
 
-    # Choose worker and auto-fill recommended salary
     worker_options = {
         f"{row['worker_name']} (Net: ₹{row['net_payable']:.2f})": row["worker_id"]
         for _, row in payroll_df.iterrows()
@@ -1022,18 +964,16 @@ def render_payroll(conn):
         if amount_to_pay <= 0:
             st.error("Payment amount must be greater than 0.")
         else:
-            run_query(
-                conn,
-                """
-                INSERT INTO worker_payments (worker_id, date, amount, type, notes)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (selected_id, pay_date.isoformat(), amount_to_pay, "PAYMENT", notes)
-            )
+            db.table("worker_payments").insert({
+                "worker_id": selected_id,
+                "date": pay_date.isoformat(),
+                "amount": amount_to_pay,
+                "type": "PAYMENT",
+                "notes": notes
+            }).execute()
             st.success(
                 f"Salary payment of ₹{amount_to_pay:.2f} recorded for {selected_row['worker_name']}."
             )
-
 
 
 # =========================
@@ -1049,7 +989,6 @@ def render_reports(conn):
     with col2:
         end = st.date_input("Report To", value=date.today())
 
-    # Transactions summary
     tx_df = get_transactions_df(conn, start_date=start, end_date=end)
     if tx_df.empty:
         st.info("No transactions in this period.")
@@ -1072,7 +1011,6 @@ def render_reports(conn):
 
     st.markdown("---")
 
-    # Daily summary table
     tx_df["day"] = tx_df["date"].dt.date
     daily_summary = tx_df.pivot_table(
         index="day",
@@ -1085,7 +1023,6 @@ def render_reports(conn):
     st.subheader("Daily Profit & Loss")
     st.dataframe(daily_summary, use_container_width=True)
 
-    # Export daily summary
     csv_daily = daily_summary.reset_index().to_csv(index=False).encode("utf-8")
     st.download_button(
         label="Download Daily Summary as CSV",
@@ -1097,7 +1034,6 @@ def render_reports(conn):
     st.subheader("Daily Profit Trend")
     st.line_chart(daily_summary["PROFIT"])
 
-    # Category-wise insight
     st.subheader("Top Expense Categories")
     exp = tx_df[tx_df["type"] == "EXPENSE"]
     if not exp.empty:
@@ -1142,65 +1078,45 @@ def render_settings(conn):
         set_setting(conn, "fund_flow_threshold", flow_th)
         st.success("Settings updated successfully.")
 
-#TABLE MODIFICATIONS
-def upgrade_worker_table(conn):
-    """Safely add new columns to workers table if they do not exist."""
-    cur = conn.cursor()
-
-    # Because row_factory returns dicts, extract using keys
-    cur.execute("PRAGMA table_info(workers);")
-    existing_cols = [c["name"] for c in cur.fetchall()]
-
-    def add_col(column, col_type):
-        if column not in existing_cols:
-            cur.execute(f"ALTER TABLE workers ADD COLUMN {column} {col_type};")
-
-    # Personal details
-    add_col("father_name", "TEXT")
-    add_col("mobile", "TEXT")
-    add_col("site_allocation", "TEXT")
-
-    # Account details
-    add_col("account_number", "TEXT")
-    add_col("bank_name", "TEXT")
-    add_col("ifsc_code", "TEXT")
-
-    conn.commit()
-
-
 
 # =========================
 # MAIN APP ENTRY
 # =========================
 
 def main():
-    conn = get_connection()
-    init_db(conn)
-    upgrade_worker_table(conn)
+    # Ensure DB client and admin user
+    get_db()
+    ensure_admin_user()
 
-    if "active_page" not in st.session_state:
-        st.session_state.active_page = "Dashboard"
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    # Show login modal if not logged in
+    if not st.session_state.logged_in:
+        render_login_modal()
+        # Do not render rest of app until logged in
+        return
+
+    conn = None  # kept for compatibility with function signatures
 
     st.sidebar.title("HRMS & Accounts")
 
     def nav_button(label):
         is_active = (st.session_state.active_page == label)
 
-        # Create a container to apply active styling
         container = st.sidebar.container()
-
-        # Apply class only if active
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
             container.markdown("<div>", unsafe_allow_html=True)
 
-        # This button is the ONLY element shown → no duplicates
         if container.button(label):
             st.session_state.active_page = label
 
         container.markdown("</div>", unsafe_allow_html=True)
 
+    if "active_page" not in st.session_state:
+        st.session_state.active_page = "Dashboard"
 
     nav_button("Dashboard")
     nav_button("Workers")
@@ -1210,8 +1126,6 @@ def main():
     nav_button("Reports & Insights")
     nav_button("Settings")
 
-
-    st.markdown("<div class='fade-in'>", unsafe_allow_html=True)
     page = st.session_state.active_page
 
     if page == "Dashboard":
@@ -1229,13 +1143,6 @@ def main():
     elif page == "Settings":
         render_settings(conn)
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-
-
-
 
 if __name__ == "__main__":
     main()
-
