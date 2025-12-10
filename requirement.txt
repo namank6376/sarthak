@@ -3,6 +3,8 @@ pandas
 supabase-py
 gotrue
 postgrest
+supabase
 storage3
 realtime
+
 
