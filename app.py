@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 from supabase import create_client, Client
 import hashlib
+import streamlit as st
+
 
 # =========================
 # BASIC APP CONFIG & STYLE
@@ -69,38 +71,7 @@ st.markdown("""
     transform: translateX(8px);
 }
 
-/* Login modal overlay */
-.login-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.65);
-    z-index: 9998;
-}
 
-/* Login modal card */
-.login-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: #111827;
-    color: white;
-    padding: 2rem 2.5rem;
-    border-radius: 12px;
-    box-shadow: 0 25px 50px rgba(0,0,0,0.7);
-    z-index: 9999;
-    width: min(400px, 90vw);
-}
-
-.login-modal h2 {
-    margin-bottom: 0.75rem;
-}
-
-.login-modal p {
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-    color: #9CA3AF;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -463,34 +434,40 @@ def check_login(username: str, password: str) -> bool:
 
 
 def render_login_modal():
-    if st.session_state.get("logged_in", False):
+    if st.session_state.get("logged_in"):
         return
 
-    # Overlay
-    st.markdown("<div class='login-overlay'></div>", unsafe_allow_html=True)
+    # Remove sidebar + menu
+    st.markdown("""
+        <style>
+            #MainMenu, header, footer {visibility: hidden;}
+        </style>
+    """, unsafe_allow_html=True)
 
-    # Modal card
-    st.markdown("<div class='login-modal'>", unsafe_allow_html=True)
-    st.markdown("<h2>Technique Iron Works</h2>", unsafe_allow_html=True)
-    st.markdown("<p>Secure access to HRMS, Attendance, Payroll & Accounts dashboard.</p>", unsafe_allow_html=True)
+    # Create a clean full-page centered layout
+    col1, col2, col3 = st.columns([1, 2, 1])
 
-    username = st.text_input("Username", key="login_username")
-    password = st.text_input("Password", type="password", key="login_password")
-    col_l, col_r = st.columns([1, 1])
-    with col_l:
-        login_btn = st.button("Login")
-    with col_r:
-        st.caption("Admin only access")
+    with col2:
+        st.markdown("## Technique Iron Works")
+        st.markdown("Secure access to HRMS, Attendance, Payroll & Accounts.")
 
-    if login_btn:
-        if check_login(username, password):
-            st.session_state.logged_in = True
-            st.success("Login successful.")
-            st.experimental_rerun()
-        else:
-            st.error("Invalid username or password.")
+        st.write("")  # spacing
+        st.write("")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        login = st.button("Login")
+
+        if login:
+            if check_login(username, password):
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+    # Stop the app here so main UI doesn't render
+    st.stop()
 
 
 # =========================
