@@ -531,7 +531,7 @@ def render_dashboard(conn):
                 with cols[i % 4]:
                     st.markdown(f"""
                         <div style="
-                            padding: 15px;
+                            padding: 10px;
                             border-radius: 10px;
                             background: #f1f5f9;
                             text-align: center;
@@ -540,7 +540,6 @@ def render_dashboard(conn):
                         ">
                             <h4 style="margin: 0;">{row['role']}</h4>
                             <p style="font-size: 26px; font-weight: bold;">{row['worker_id']}</p>
-                            <p>Present Today</p>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -1217,3 +1216,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
