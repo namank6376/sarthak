@@ -6,15 +6,13 @@ import hashlib
 import streamlit as st
 
 
-
-
 # =========================
 # BASIC APP CONFIG & STYLE
 # =========================
 
 st.set_page_config(
-    page_title="Sarthak",
-    page_icon="🌐",
+    page_title="Welcome to Technique Iron Works",
+    page_icon="👷‍♂️",
     layout="wide"
 )
 
@@ -506,6 +504,46 @@ def render_dashboard(conn):
     three_months_back = today - timedelta(days=90)
     tx = get_transactions_df(conn, start_date=three_months_back, end_date=today)
 
+    # =========================
+    # ROLE BASED SUMMARY CARDS
+    # =========================
+
+    st.markdown("### Worker Presence by Role")
+
+    att_today = get_attendance_df(conn, for_date=date.today())
+
+    if att_today.empty:
+        st.info("No attendance data for today.")
+    else:
+        role_counts = (
+            att_today[att_today["status"] == "Present"]
+            .groupby("role")["worker_id"]
+            .count()
+            .reset_index()
+        )
+
+        if role_counts.empty:
+            st.info("No workers present today.")
+        else:
+            cols = st.columns(min(4, len(role_counts)))
+
+            for (i, row) in role_counts.iterrows():
+                with cols[i % 4]:
+                    st.markdown(f"""
+                        <div style="
+                            padding: 15px;
+                            border-radius: 10px;
+                            background: #f1f5f9;
+                            text-align: center;
+                            margin-bottom: 10px;
+                            border-left: 5px solid #fa7f6b;
+                        ">
+                            <h4 style="margin: 0;">{row['role']}</h4>
+                            <p style="font-size: 26px; font-weight: bold;">{row['worker_id']}</p>
+                            <p>Present Today</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
     if tx.empty:
         st.info("No transactions data available yet. Add some in the Accounts section.")
         return
@@ -538,7 +576,7 @@ def render_workers(conn):
     db = get_db()
     st.title("Workers Management")
 
-    tab_add, tab_manage = st.tabs(["Add Worker", "Manage Workers"])
+    tab_add, tab_manage = st.tabs(["➕ Add Worker", "🛠 Manage Workers"])
 
     # ---- Add Worker ----
     with tab_add:
@@ -725,6 +763,60 @@ def render_attendance(conn):
         else:
             st.dataframe(att_df[["worker_name", "role", "date", "status", "hours"]], use_container_width=True)
 
+        # -----------------------------
+        # EDIT / DELETE ATTENDANCE
+        # -----------------------------
+        st.markdown("### Modify Existing Attendance")
+
+        att_edit_df = get_attendance_df(conn, for_date=view_date)
+
+        if not att_edit_df.empty:
+            # Create a selection list
+            att_edit_df["label"] = att_edit_df.apply(
+                lambda r: f"{r['worker_name']} — {r['status']} ({r['hours']} hrs)", axis=1
+            )
+
+            selected_att = st.selectbox(
+                "Select a record to modify",
+                options=att_edit_df["label"].tolist()
+            )
+
+            selected_row = att_edit_df[att_edit_df["label"] == selected_att].iloc[0]
+
+            new_status = st.selectbox(
+                "Update Status",
+                options=["Present", "Absent", "Leave", "Half-Day"],
+                index=["Present", "Absent", "Leave", "Half-Day"].index(selected_row["status"])
+            )
+
+            new_hours = st.number_input(
+                "Update Hours",
+                min_value=0.0,
+                value=float(selected_row["hours"] or 8.0),
+                step=0.5
+            )
+
+            col_u, col_d = st.columns(2)
+            update_btn = col_u.button("Save Changes")
+            delete_btn = col_d.button("Delete Record")
+
+            if update_btn:
+                get_db().table("attendance").update({
+                    "status": new_status,
+                    "hours": new_hours
+                }).eq("id", selected_row["id"]).execute()
+                st.success("Attendance updated.")
+                st.rerun()
+
+            if delete_btn:
+                get_db().table("attendance").delete().eq("id", selected_row["id"]).execute()
+                st.warning("Attendance record deleted.")
+                st.rerun()
+
+        else:
+            st.info("No editable records for this date.")
+
+
 
 # =========================
 # UI: ACCOUNTS PAGE
@@ -734,7 +826,7 @@ def render_accounts(conn):
     db = get_db()
     st.title("Accounts & Transactions")
 
-    tab_tx, tab_pay = st.tabs(["Business Transactions", "Worker Payments & Advances"])
+    tab_tx, tab_pay = st.tabs(["💸 Business Transactions", "👷 Worker Payments & Advances"])
 
     # ---- Business Transactions ----
     with tab_tx:
@@ -1125,6 +1217,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
