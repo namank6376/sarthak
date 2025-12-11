@@ -537,6 +537,7 @@ def render_dashboard(conn):
                             text-align: center;
                             margin-bottom: 10px;
                             border-left: 5px solid #fa7f6b;
+                            color:black;
                         ">
                             <h4 style="margin: 0;">{row['role']}</h4>
                             <p style="font-size: 26px; font-weight: bold;">{row['worker_id']}</p>
@@ -1216,4 +1217,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
