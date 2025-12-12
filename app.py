@@ -1185,20 +1185,26 @@ def main():
 
     st.sidebar.title("Navigation")
 
-    def nav_button(label):
+    def nav_button(label, requires_admin=False):
+        user_role = st.session_state.get("role", "user")
+    
+        locked = (requires_admin and user_role != "admin")
+        display_label = label + (" 🔒" if locked else "")
+    
         is_active = (st.session_state.active_page == label)
-
+    
         container = st.sidebar.container()
-        
+    
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
             container.markdown("<div>", unsafe_allow_html=True)
-
-        if container.button(label):
+    
+        if container.button(display_label):
             st.session_state.active_page = label
 
-        container.markdown("</div>", unsafe_allow_html=True)
+    container.markdown("</div>", unsafe_allow_html=True)
+
         
 
     if "active_page" not in st.session_state:
@@ -1232,6 +1238,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
