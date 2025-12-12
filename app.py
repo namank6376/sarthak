@@ -428,9 +428,6 @@ def calculate_payroll(conn, start_date, end_date):
 # =========================
 
 def check_login(username: str, password: str):
-    """
-    Returns tuple (success: bool, role: str or None)
-    """
     db = get_db()
     res = db.table("admin_auth").select("password_hash, role").eq("username", username).execute()
 
@@ -438,11 +435,13 @@ def check_login(username: str, password: str):
         return False, None
 
     stored_hash = res.data[0]["password_hash"]
-    role = res.data[0].get("role", "user")  # default user if not stored
+    role = res.data[0].get("role", "user")
 
     if stored_hash == hash_password(password):
         return True, role
-    return False, None
+    else:
+        return False, None
+
 
 
 
@@ -1254,6 +1253,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
