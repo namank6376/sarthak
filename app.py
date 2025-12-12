@@ -1183,19 +1183,19 @@ def main():
     def nav_button(label):
     
 
-    # render a single button inside sidebar
-    # use a wrapper div to allow the 'active-tab' class
-    is_active = st.session_state.active_page == label
-    wrapper = st.sidebar.empty()
-    if is_active:
-        wrapper.markdown("<div class='active-tab'>", unsafe_allow_html=True)
-    else:
-        wrapper.markdown("<div>", unsafe_allow_html=True)
-
-    if wrapper.button(label):
-        st.session_state.active_page = label
-
-    wrapper.markdown("</div>", unsafe_allow_html=True)
+        # render a single button inside sidebar
+        # use a wrapper div to allow the 'active-tab' class
+        is_active = st.session_state.active_page == label
+        wrapper = st.sidebar.empty()
+        if is_active:
+            wrapper.markdown("<div class='active-tab'>", unsafe_allow_html=True)
+        else:
+            wrapper.markdown("<div>", unsafe_allow_html=True)
+    
+        if wrapper.button(label):
+            st.session_state.active_page = label
+    
+        wrapper.markdown("</div>", unsafe_allow_html=True)
 
         
 
@@ -1230,6 +1230,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
