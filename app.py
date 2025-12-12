@@ -472,15 +472,19 @@ def render_login_modal():
         login = st.button("Login")
 
         if login:
-            success, role = check_login(username, password)
+            username_in = username.strip()
+            password_in = password  # optionally .strip() if you don't allow leading/trailing spaces in passwords
         
-            if success:
+            ok, role = check_login(username_in, password_in)
+            if ok:
                 st.session_state.logged_in = True
-                st.session_state.role = role
+                st.session_state.username = username_in
+                st.session_state.role = role or "user"
+                st.success(f"Logged in as {username_in} ({st.session_state.role})")
                 st.rerun()
-        
             else:
                 st.error("Invalid username or password.")
+
 
 
     # Stop the app here so main UI doesn't render
@@ -1258,6 +1262,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
