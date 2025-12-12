@@ -54,12 +54,12 @@ st.markdown("""
     gap: 0rem;
     border: none;
     margin-bottom: -100px !important;
-    transition: 0.25s ease;
+    
 }
 
 /* Hover animation */
 .stButton > button:hover {
-    background-color: #D16B5A;
+    background-color: #D4D4D4;
     transform: translateX(6px);
 }
 
@@ -1217,6 +1217,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
