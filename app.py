@@ -1211,33 +1211,50 @@ def main():
         st.session_state.active_page = "Dashboard"
 
     nav_button("Dashboard")
-    nav_button("Workers")
-    nav_button("Attendance")
-    nav_button("Accounts")
-    nav_button("Payroll")
-    nav_button("Reports")
-    nav_button("Settings")
+    nav_button("Workers")                           # user: view only
+    nav_button("Attendance")                        # user: view only
+    nav_button("Accounts", requires_admin=True)     # locked for users
+    nav_button("Payroll", requires_admin=True)      # locked
+    nav_button("Reports & Insights", requires_admin=True)
+    nav_button("Settings", requires_admin=True)
+
 
     page = st.session_state.active_page
-
+    role = st.session_state.get("role", "user")
+    
+    def require_admin():
+        st.error("Access Denied — Admin Only Section")
+        st.stop()
+    
     if page == "Dashboard":
         render_dashboard(conn)
+    
     elif page == "Workers":
         render_workers(conn)
+    
     elif page == "Attendance":
         render_attendance(conn)
+    
     elif page == "Accounts":
+        if role != "admin": require_admin()
         render_accounts(conn)
+    
     elif page == "Payroll":
+        if role != "admin": require_admin()
         render_payroll(conn)
+    
     elif page == "Reports & Insights":
+        if role != "admin": require_admin()
         render_reports(conn)
+    
     elif page == "Settings":
+        if role != "admin": require_admin()
         render_settings(conn)
 
 
 if __name__ == "__main__":
     main()
+
 
 
 
