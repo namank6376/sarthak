@@ -1190,7 +1190,13 @@ def main():
     def nav_button(label):
         is_active = (st.session_state.active_page == label)
 
-        container = st.sidebar.container(<div style="height: 50%;">)
+        container = st.sidebar.container()
+        container.markdown(
+        """
+        <div style="height: 50px;"></div>
+        """,
+        unsafe_allow_html=True
+    )
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
@@ -1210,7 +1216,7 @@ def main():
     nav_button("Attendance")
     nav_button("Accounts")
     nav_button("Payroll")
-    nav_button("Reports & Insights")
+    nav_button("Reports")
     nav_button("Settings")
 
     page = st.session_state.active_page
@@ -1233,6 +1239,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
