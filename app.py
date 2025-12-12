@@ -1203,7 +1203,7 @@ def main():
         if container.button(display_label):
             st.session_state.active_page = label
 
-    container.markdown("</div>", unsafe_allow_html=True)
+        container.markdown("</div>", unsafe_allow_html=True)
 
         
 
@@ -1238,6 +1238,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
