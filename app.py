@@ -44,39 +44,43 @@ ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
 # Custom CSS for sidebar buttons
 st.markdown("""
 <style>
-
- /* Remove default Streamlit padding around sidebar */
+/* tighten sidebar padding */
 section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 20px !important;
+    padding-top: 12px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
 }
 
-/* NAV BUTTON STYLE */
+/* compact nav buttons */
 .stButton > button {
     width: 100%;
     border: none;
     background: transparent;
-    color: #333333;
+    color: #263238;
     font-weight: 600;
     text-align: left;
-    padding: 8px 4px;
+    padding: 8px 6px;
     border-radius: 6px;
-    margin: 0px 0 4px 0 !important; /* Tight spacing */
+    margin: 0 0 6px 0 !important;   /* small gap between items */
+    box-shadow: none !important;
 }
 
-/* Hover */
+/* hover */
 .stButton > button:hover {
-    background-color: #EDEDED;
+    background-color: #f1f5f9;
+    transform: none;   /* don't shift layout */
 }
 
-/* Active tab look */
+/* active look */
 .active-tab > button {
-    background-color: #DDEBFF !important;
-    border-left: 4px solid #1A73E8 !important;
-    color: #1A73E8 !important;
+    background-color: #e8f1ff !important;
+    color: #0b63d8 !important;
+    border-left: 4px solid #0b63d8 !important;
+    padding-left: 10px !important;
 }
-
 </style>
 """, unsafe_allow_html=True)
+
 
 
 st.markdown(
@@ -1177,18 +1181,22 @@ def main():
     st.sidebar.title("Navigation")
 
     def nav_button(label):
-        is_active = (st.session_state.active_page == label)
+    
 
-        container = st.sidebar.container()
-        if is_active:
-            container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
-        else:
-            container.markdown("<div>", unsafe_allow_html=True)
+    # render a single button inside sidebar
+    # use a wrapper div to allow the 'active-tab' class
+    is_active = st.session_state.active_page == label
+    wrapper = st.sidebar.empty()
+    if is_active:
+        wrapper.markdown("<div class='active-tab'>", unsafe_allow_html=True)
+    else:
+        wrapper.markdown("<div>", unsafe_allow_html=True)
 
-        if container.button(label):
-            st.session_state.active_page = label
+    if wrapper.button(label):
+        st.session_state.active_page = label
 
-        container.markdown("</div>", unsafe_allow_html=True)
+    wrapper.markdown("</div>", unsafe_allow_html=True)
+
         
 
     if "active_page" not in st.session_state:
@@ -1222,6 +1230,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
