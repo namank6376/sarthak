@@ -45,6 +45,19 @@ ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
 st.markdown("""
 <style>
 /* Default sidebar button */
+.nav-button > button{
+     width: 100%;
+    border-radius: 6px;
+    background-color: transparent;
+    color: blue;
+    font-weight: 600;
+    gap: 0rem;
+    border: none;
+    margin-bottom: -100px !important;
+    padding-right: 10px;
+    text-align: left;
+    
+}
 .stButton > button {
     width: 100%;
     border-radius: 6px;
@@ -54,6 +67,8 @@ st.markdown("""
     gap: 0rem;
     border: none;
     margin-bottom: -100px !important;
+    padding-right: 10px;
+    text-align: left;
     
 }
 
@@ -1170,7 +1185,7 @@ def main():
 
     conn = None  # kept for compatibility with function signatures
 
-    st.sidebar.title("HRMS & Accounts")
+    st.sidebar.title("Navigation")
 
     def nav_button(label):
         is_active = (st.session_state.active_page == label)
@@ -1185,6 +1200,7 @@ def main():
             st.session_state.active_page = label
 
         container.markdown("</div>", unsafe_allow_html=True)
+        container.button.markdown("</div class='nav_button'>", unsafe_allow_html=True)
 
     if "active_page" not in st.session_state:
         st.session_state.active_page = "Dashboard"
@@ -1217,6 +1233,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
