@@ -44,44 +44,51 @@ ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
 # Custom CSS for sidebar buttons
 st.markdown("""
 <style>
-/* tighten sidebar padding */
-section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 12px !important;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+/* Default sidebar button */
+.nav-button > button{
+     width: 100%;
+    border-radius: 6px;
+    background-color: transparent;
+    color: blue;
+    font-weight: 600;
+    gap: 0rem;
+    border: none;
+    margin-bottom: -100px !important;
+    padding-right: 10px;
+    text-align: left;
+    
 }
-
-/* compact nav buttons */
 .stButton > button {
     width: 100%;
-    border: none;
-    background: transparent;
-    color: #263238;
-    font-weight: 600;
-    text-align: left;
-    padding: 8px 6px;
     border-radius: 6px;
-    margin: 0 0 6px 0 !important;   /* small gap between items */
-    box-shadow: none !important;
+    background-color: transparent;
+    color: 7D7A7A;
+    font-weight: 600;
+    gap: 0rem;
+    border: none;
+    margin-bottom: -100px !important;
+    padding-right: 10px;
+    text-align: left;
+    
 }
 
-/* hover */
+/* Hover animation */
 .stButton > button:hover {
-    background-color: #f1f5f9;
-    transform: none;   /* don't shift layout */
+    background-color: #D4D4D4;
+    transform: translateX(6px);
 }
 
-/* active look */
+/* ACTIVE TAB BUTTON */
 .active-tab > button {
-    background-color: #e8f1ff !important;
-    color: #0b63d8 !important;
-    border-left: 4px solid #0b63d8 !important;
-    padding-left: 10px !important;
+    background-color: #fff !important;
+    color: white !important;
+    border: 1px solid #049E52 !important;
+    transform: translateX(8px);
 }
+
+
 </style>
 """, unsafe_allow_html=True)
-
-
 
 st.markdown(
     """
@@ -1181,22 +1188,24 @@ def main():
     st.sidebar.title("Navigation")
 
     def nav_button(label):
-    
+        is_active = (st.session_state.active_page == label)
 
-        # render a single button inside sidebar
-        # use a wrapper div to allow the 'active-tab' class
-        is_active = st.session_state.active_page == label
-        wrapper = st.sidebar.empty()
+        container = st.sidebar.container()
+        container.markdown(
+        """
+        <div style="height: 50%;"></div>
+        """,
+        unsafe_allow_html=True
+    )
         if is_active:
-            wrapper.markdown("<div class='active-tab'>", unsafe_allow_html=True)
+            container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
-            wrapper.markdown("<div>", unsafe_allow_html=True)
-    
-        if wrapper.button(label):
-            st.session_state.active_page = label
-    
-        wrapper.markdown("</div>", unsafe_allow_html=True)
+            container.markdown("<div>", unsafe_allow_html=True)
 
+        if container.button(label):
+            st.session_state.active_page = label
+
+        container.markdown("</div>", unsafe_allow_html=True)
         
 
     if "active_page" not in st.session_state:
@@ -1230,11 +1239,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
 
 
 
