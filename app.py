@@ -53,7 +53,7 @@ st.markdown("""
     font-weight: 600;
     gap: 0rem;
     border: none;
-    margin: -20px 0 !important;
+    margin: -100px 0 !important;
     transition: 0.25s ease;
 }
 
@@ -1217,5 +1217,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
