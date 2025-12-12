@@ -53,7 +53,6 @@ st.markdown("""
     font-weight: 600;
     gap: 0rem;
     border: none;
-    margin: 1px 0 !important;
     padding-right: 10px;
     text-align: left;
     
@@ -1193,7 +1192,7 @@ def main():
         container = st.sidebar.container()
         container.markdown(
         """
-        <div style="height: 50%;"></div>
+        <div style="height: 10%;"></div>
         """,
         unsafe_allow_html=True
     )
@@ -1239,6 +1238,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
