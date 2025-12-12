@@ -1190,12 +1190,7 @@ def main():
         is_active = (st.session_state.active_page == label)
 
         container = st.sidebar.container()
-        container.markdown(
-        """
-        <div style="height: 10%;"></div>
-        """,
-        unsafe_allow_html=True
-    )
+        
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
@@ -1238,6 +1233,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
