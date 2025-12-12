@@ -53,6 +53,7 @@ st.markdown("""
     font-weight: 600;
     gap: 0rem;
     border: none;
+    margin: 1px 0 !important;
     padding-right: 10px;
     text-align: left;
     
@@ -1233,6 +1234,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
