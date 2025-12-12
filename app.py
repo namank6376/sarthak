@@ -427,13 +427,23 @@ def calculate_payroll(conn, start_date, end_date):
 # AUTH / LOGIN
 # =========================
 
-def check_login(username: str, password: str) -> bool:
+def check_login(username: str, password: str):
+    """
+    Returns tuple (success: bool, role: str or None)
+    """
     db = get_db()
-    res = db.table("admin_auth").select("password_hash").eq("username", username).execute()
+    res = db.table("admin_auth").select("password_hash, role").eq("username", username).execute()
+
     if not res.data:
-        return False
+        return False, None
+
     stored_hash = res.data[0]["password_hash"]
-    return stored_hash == hash_password(password)
+    role = res.data[0].get("role", "user")  # default user if not stored
+
+    if stored_hash == hash_password(password):
+        return True, role
+    return False, None
+
 
 
 def render_login_modal():
@@ -1222,6 +1232,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
