@@ -44,20 +44,8 @@ ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
 # Custom CSS for sidebar buttons
 st.markdown("""
 <style>
-/* Default sidebar button */
-.nav-button > button{
-     width: 100%;
-    border-radius: 6px;
-    background-color: transparent;
-    color: blue;
-    font-weight: 600;
-    gap: 0rem;
-    border: none;
-    margin: 1px 0 !important;
-    padding-right: 10px;
-    text-align: left;
-    
-}
+/* Default sidebar button */ 
+
 .stButton > button {
     width: 100%;
     border-radius: 6px;
@@ -1234,6 +1222,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
