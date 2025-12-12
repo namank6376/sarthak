@@ -54,7 +54,7 @@ st.markdown("""
     font-weight: 600;
     gap: 0rem;
     border: none;
-    margin: -70% 0 !important;
+    margin: -50% 0 !important;
     padding-right: 10px;
     text-align: left;
     
@@ -63,7 +63,7 @@ st.markdown("""
 /* Hover animation */
 .stButton > button:hover {
     background-color: #D4D4D4;
-    transform: translateX(6px);
+    
 }
 
 /* ACTIVE TAB BUTTON */
@@ -1222,6 +1222,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
