@@ -1200,7 +1200,7 @@ def main():
             st.session_state.active_page = label
 
         container.markdown("</div>", unsafe_allow_html=True)
-        container.button.markdown("</div class='nav_button'>", unsafe_allow_html=True)
+        
 
     if "active_page" not in st.session_state:
         st.session_state.active_page = "Dashboard"
@@ -1233,6 +1233,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
