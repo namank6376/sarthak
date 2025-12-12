@@ -1190,7 +1190,7 @@ def main():
     def nav_button(label):
         is_active = (st.session_state.active_page == label)
 
-        container = st.sidebar.container()
+        container = st.sidebar.container(<div style="height: 50%;">)
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
@@ -1233,6 +1233,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
