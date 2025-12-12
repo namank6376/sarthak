@@ -44,51 +44,40 @@ ADMIN_PASSWORD_HASH = hash_password(ADMIN_PASSWORD_PLAIN)
 # Custom CSS for sidebar buttons
 st.markdown("""
 <style>
-/* Default sidebar button */
-.nav-button > button{
-     width: 100%;
-    border-radius: 6px;
-    background-color: transparent;
-    color: blue;
-    font-weight: 600;
-    gap: 0rem;
-    border: none;
-    margin-bottom: -100px !important;
-    padding-right: 10px;
-    text-align: left;
-    
+
+ /* Remove default Streamlit padding around sidebar */
+section[data-testid="stSidebar"] > div:first-child {
+    padding-top: 20px !important;
 }
+
+/* NAV BUTTON STYLE */
 .stButton > button {
     width: 100%;
-    border-radius: 6px;
-    background-color: transparent;
-    color: 7D7A7A;
-    font-weight: 600;
-    gap: 0rem;
     border: none;
-    margin-bottom: -100px !important;
-    padding-right: 10px;
+    background: transparent;
+    color: #333333;
+    font-weight: 600;
     text-align: left;
-    
+    padding: 8px 4px;
+    border-radius: 6px;
+    margin: 0px 0 4px 0 !important; /* Tight spacing */
 }
 
-/* Hover animation */
+/* Hover */
 .stButton > button:hover {
-    background-color: #D4D4D4;
-    transform: translateX(6px);
+    background-color: #EDEDED;
 }
 
-/* ACTIVE TAB BUTTON */
+/* Active tab look */
 .active-tab > button {
-    background-color: #fff !important;
-    color: white !important;
-    border: 1px solid #049E52 !important;
-    transform: translateX(8px);
+    background-color: #DDEBFF !important;
+    border-left: 4px solid #1A73E8 !important;
+    color: #1A73E8 !important;
 }
-
 
 </style>
 """, unsafe_allow_html=True)
+
 
 st.markdown(
     """
@@ -1191,12 +1180,6 @@ def main():
         is_active = (st.session_state.active_page == label)
 
         container = st.sidebar.container()
-        container.markdown(
-        """
-        <div style="height: 10px;"></div>
-        """,
-        unsafe_allow_html=True
-    )
         if is_active:
             container.markdown("<div class='active-tab'>", unsafe_allow_html=True)
         else:
@@ -1239,6 +1222,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
