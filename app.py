@@ -48,11 +48,11 @@ st.markdown("""
 .stButton > button {
     width: 100%;
     border-radius: 6px;
-    background-color: #FA7F6B;
-    color: white;
+    background-color: transparent;
+    color: 7D7A7A;
     font-weight: 600;
     gap: 0rem;
-    border: 1px solid #D16B5A;
+    border: none;
     margin: -20px 0 !important;
     transition: 0.25s ease;
 }
